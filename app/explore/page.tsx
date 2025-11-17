@@ -16,16 +16,64 @@ export default function ExplorePage() {
   useEffect(() => {
     const fetchQuotes = async () => {
       try {
-        const response = await fetch('https://type.fit/api/quotes');
-        if (!response.ok) {
-          throw new Error('Failed to fetch quotes');
+        // Try multiple APIs in case one fails
+        const apis = [
+          'https://type.fit/api/quotes',
+          'https://api.quotable.io/quotes/random?limit=10',
+          'https://zenquotes.io/api/random/10'
+        ];
+
+        let data: Quote[] = [];
+
+        for (const api of apis) {
+          try {
+            const response = await fetch(api);
+            if (!response.ok) continue;
+
+            if (api.includes('quotable.io')) {
+              const quotableData = await response.json();
+              data = quotableData.map((q: any) => ({
+                text: q.content,
+                author: q.author
+              }));
+            } else if (api.includes('zenquotes.io')) {
+              const zenData = await response.json();
+              data = zenData.map((q: any) => ({
+                text: q.q,
+                author: q.a
+              }));
+            } else {
+              data = await response.json();
+              // Get random 10 quotes
+              data = data.sort(() => 0.5 - Math.random()).slice(0, 10);
+            }
+
+            if (data.length > 0) break;
+          } catch (apiError) {
+            continue;
+          }
         }
-        const data: Quote[] = await response.json();
-        // Get random 10 quotes
-        const randomQuotes = data.sort(() => 0.5 - Math.random()).slice(0, 10);
-        setQuotes(randomQuotes);
+
+        if (data.length === 0) {
+          throw new Error('Unable to fetch quotes from any source');
+        }
+
+        setQuotes(data);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
+        console.log('API fetch failed, using fallback quotes:', err);
+        // Fallback to some inspirational quotes
+        setQuotes([
+          { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
+          { text: "Believe you can and you're halfway there.", author: "Theodore Roosevelt" },
+          { text: "The future belongs to those who believe in the beauty of their dreams.", author: "Eleanor Roosevelt" },
+          { text: "You miss 100% of the shots you don't take.", author: "Wayne Gretzky" },
+          { text: "The best way to predict the future is to create it.", author: "Peter Drucker" },
+          { text: "Don't watch the clock; do what it does. Keep going.", author: "Sam Levenson" },
+          { text: "The only limit to our realization of tomorrow will be our doubts of today.", author: "Franklin D. Roosevelt" },
+          { text: "Keep your face always toward the sunshine—and shadows will fall behind you.", author: "Walt Whitman" }
+        ]);
+        // Don't set error since we have fallback quotes
+        setError(null);
       } finally {
         setLoading(false);
       }
